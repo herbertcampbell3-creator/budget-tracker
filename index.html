@@ -38,20 +38,23 @@
       background: var(--bg);
       color: var(--text);
       min-height: 100vh;
-      padding-top: var(--hdr-h);
-      padding-bottom: var(--nav-h);
+      /* Account for Dynamic Island / notch + home indicator */
+      padding-top: calc(var(--hdr-h) + env(safe-area-inset-top, 0px));
+      padding-bottom: calc(var(--nav-h) + env(safe-area-inset-bottom, 0px));
     }
 
     /* ── Header ─────────────────────────────────────────────── */
     .hdr {
       position: fixed; top: 0; left: 0; right: 0;
-      height: var(--hdr-h);
+      /* Grow to fit the safe area above (Dynamic Island / notch) */
+      padding-top: env(safe-area-inset-top, 0px);
+      height: calc(var(--hdr-h) + env(safe-area-inset-top, 0px));
       background: var(--green);
       color: white;
       display: flex; flex-direction: column;
-      align-items: center; justify-content: center;
+      align-items: center; justify-content: flex-end;
+      padding-bottom: 10px;
       z-index: 100;
-      padding: 0 16px;
     }
     .hdr-title  { font-size: 15px; font-weight: 700; letter-spacing: 0.2px; }
     .hdr-week   { font-size: 12px; opacity: 0.8; margin-top: 1px; }
@@ -59,12 +62,13 @@
     /* ── Bottom nav ─────────────────────────────────────────── */
     .nav {
       position: fixed; bottom: 0; left: 0; right: 0;
-      height: var(--nav-h);
+      /* Grow to fit the home indicator safe area */
+      height: calc(var(--nav-h) + env(safe-area-inset-bottom, 0px));
+      padding-bottom: env(safe-area-inset-bottom, 0px);
       background: var(--card);
       border-top: 1px solid var(--border);
       display: flex; align-items: stretch;
       z-index: 100;
-      padding-bottom: env(safe-area-inset-bottom, 0);
     }
     .nav-btn {
       flex: 1; display: flex; flex-direction: column;
@@ -113,19 +117,59 @@
     }
     .bcard.full { grid-column: 1 / -1; }
 
-    .bcard-name  { font-size: 12px; color: var(--muted); font-weight: 600; }
-    .bcard-spent { font-size: 24px; font-weight: 800; margin: 3px 0 1px; line-height: 1; }
-    .bcard-of    { font-size: 12px; color: var(--muted); }
-    .bcard-bar   { height: 5px; background: var(--border); border-radius: 3px; margin: 8px 0 6px; overflow: hidden; }
-    .bcard-fill  { height: 100%; border-radius: 3px; transition: width 0.4s ease; }
-    .bcard-left  { font-size: 12px; font-weight: 700; }
+    /* Name row + status badge */
+    .bcard-top   { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
+    .bcard-name  { font-size: 12px; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.4px; }
+    .bcard-badge { font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 20px; }
+    .st-ok   .bcard-badge { background: var(--green-bg); color: var(--green); }
+    .st-warn .bcard-badge { background: #fff3e0;         color: var(--orange); }
+    .st-over .bcard-badge { background: #ffebee;         color: var(--red); }
 
+    /* Remaining — the big headline */
+    .bcard-remaining { font-size: 26px; font-weight: 800; line-height: 1; margin-bottom: 2px; }
+    .st-ok   .bcard-remaining { color: var(--green); }
+    .st-warn .bcard-remaining { color: var(--orange); }
+    .st-over .bcard-remaining { color: var(--red); }
+
+    .bcard-label { font-size: 11px; color: var(--muted); margin-bottom: 8px; }
+
+    /* Progress bar with pace marker */
+    .bcard-bar  {
+      position: relative; height: 6px;
+      background: var(--border); border-radius: 3px;
+      margin-bottom: 6px; overflow: visible;
+    }
+    .bcard-fill { height: 100%; border-radius: 3px; transition: width 0.4s ease; }
     .st-ok   .bcard-fill { background: var(--green); }
-    .st-ok   .bcard-left { color: var(--green); }
     .st-warn .bcard-fill { background: var(--orange); }
-    .st-warn .bcard-left { color: var(--orange); }
     .st-over .bcard-fill { background: var(--red); }
-    .st-over .bcard-left { color: var(--red); }
+
+    /* Pace marker — thin vertical line showing where you "should" be today */
+    .bcard-pace-mark {
+      position: absolute; top: -3px; bottom: -3px;
+      width: 2px; border-radius: 2px;
+      background: var(--muted); opacity: 0.5;
+      pointer-events: none;
+    }
+
+    .bcard-bottom { display: flex; justify-content: space-between; align-items: baseline; margin-top: 2px; }
+    .bcard-spent  { font-size: 11px; color: var(--muted); }
+    .bcard-spent span { font-weight: 600; color: var(--text); }
+    .bcard-pace-lbl { font-size: 10px; font-weight: 600; }
+    .st-ok   .bcard-pace-lbl { color: var(--green); }
+    .st-warn .bcard-pace-lbl { color: var(--orange); }
+    .st-over .bcard-pace-lbl { color: var(--red); }
+
+    /* Compact weekly summary card */
+    .week-summary { display: flex; gap: 0; }
+    .week-person  {
+      flex: 1; text-align: center; padding: 10px 0;
+      border-right: 1px solid var(--border);
+    }
+    .week-person:last-child { border-right: none; }
+    .week-person-name { font-size: 11px; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.4px; margin-bottom: 3px; }
+    .week-person-amt  { font-size: 20px; font-weight: 800; }
+    .week-person-sub  { font-size: 11px; color: var(--muted); margin-top: 1px; }
 
     /* ── Expense rows ───────────────────────────────────────── */
     .exp-row {
@@ -223,7 +267,9 @@
 
     /* ── Toast ───────────────────────────────────────────────── */
     .toast {
-      position: fixed; bottom: calc(var(--nav-h) + 14px); left: 50%;
+      position: fixed;
+      bottom: calc(var(--nav-h) + env(safe-area-inset-bottom, 0px) + 14px);
+      left: 50%;
       transform: translateX(-50%) translateY(12px);
       background: #2d3748; color: white;
       padding: 10px 18px; border-radius: 24px;
@@ -317,6 +363,11 @@
     <!-- rendered by JS -->
   </div>
   <div class="card">
+    <div class="card-title">This Week</div>
+    <div id="week-summary" class="week-summary"></div>
+  </div>
+
+  <div class="card">
     <div class="card-title">This Week's Expenses</div>
     <div id="week-list"></div>
   </div>
@@ -357,14 +408,14 @@
 <!-- ── Settings ──────────────────────────────────────────────── -->
 <div id="tab-settings" class="tab">
   <div class="card">
-    <div class="card-title">Weekly Budgets</div>
+    <div class="card-title">Monthly Budgets</div>
     <div class="srow">
       <span class="srow-lbl">Herb</span>
-      <span class="srow-val">$<input id="s-herb" type="number" class="budget-inp" value="50" min="0"> / week</span>
+      <span class="srow-val">$<input id="s-herb" type="number" class="budget-inp" value="200" min="0"> / month</span>
     </div>
     <div class="srow">
       <span class="srow-lbl">Leslie</span>
-      <span class="srow-val">$<input id="s-leslie" type="number" class="budget-inp" value="50" min="0"> / week</span>
+      <span class="srow-val">$<input id="s-leslie" type="number" class="budget-inp" value="200" min="0"> / month</span>
     </div>
     <button class="btn-save" onclick="saveSettings()">Save</button>
   </div>
@@ -423,7 +474,7 @@
 // ─────────────────────────────────────────────────────────────
 let db            = null;
 let expenses      = {};   // live cache updated by Firebase listener
-let settings      = { herb: 50, leslie: 50 };
+let settings      = { herbMonthly: 200, leslieMonthly: 200 };
 let activePerson  = 'Herb';
 let activeTab     = 'dashboard';
 
@@ -472,12 +523,13 @@ function startApp() {
 
   // Real-time settings listener
   db.ref('settings').on('value', snap => {
-    const v = snap.val();
-    if (v) {
-      settings = { herb: v.herb || 50, leslie: v.leslie || 50 };
-      document.getElementById('s-herb').value   = settings.herb;
-      document.getElementById('s-leslie').value = settings.leslie;
-    }
+    const v = snap.val() || {};
+    settings = {
+      herbMonthly:   v.herbMonthly   || 200,
+      leslieMonthly: v.leslieMonthly || 200
+    };
+    document.getElementById('s-herb').value   = settings.herbMonthly;
+    document.getElementById('s-leslie').value = settings.leslieMonthly;
     render();
   });
 
@@ -543,6 +595,39 @@ function spentInWeek(person, weekStart) {
     .reduce((s, e) => s + (parseFloat(e.amount) || 0), 0);
 }
 
+function currentMonthBounds() {
+  const now   = new Date();
+  const year  = now.getFullYear();
+  const month = now.getMonth();
+  const first = year + '-' + pad(month + 1) + '-01';
+  const days  = new Date(year, month + 1, 0).getDate(); // days in month
+  const last  = year + '-' + pad(month + 1) + '-' + pad(days);
+  return { first, last, days, elapsed: now.getDate() };
+}
+
+function spentThisMonth(person) {
+  const { first, last } = currentMonthBounds();
+  return Object.values(expenses)
+    .filter(e => e.person === person && e.date >= first && e.date <= last)
+    .reduce((s, e) => s + (parseFloat(e.amount) || 0), 0);
+}
+
+// Where you "should" be by today if spending evenly across the month
+function paceAmount(budget) {
+  const { days, elapsed } = currentMonthBounds();
+  return (elapsed / days) * budget;
+}
+
+function monthLabel() {
+  return new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+}
+
+function daysLeftInMonth() {
+  const now  = new Date();
+  const days = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+  return days - now.getDate();
+}
+
 function thisWeekEntries() {
   const ws = weekStartOf(todayStr());
   const we = addDays(ws, 7);
@@ -556,39 +641,92 @@ function thisWeekEntries() {
 // ─────────────────────────────────────────────────────────────
 function render() {
   renderBudgetCards();
+  renderWeeklySummary();
   renderWeekList();
   renderHistory();
 }
 
 function renderBudgetCards() {
-  const ws    = weekStartOf(todayStr());
-  const hS    = spentInWeek('Herb',   ws);
-  const lS    = spentInWeek('Leslie', ws);
-  const hB    = settings.herb;
-  const lB    = settings.leslie;
-  const cS    = hS + lS;
-  const cB    = hB + lB;
+  const hS  = spentThisMonth('Herb');
+  const lS  = spentThisMonth('Leslie');
+  const hB  = settings.herbMonthly;
+  const lB  = settings.leslieMonthly;
 
   document.getElementById('budget-grid').innerHTML =
-    budgetCardHTML('Herb',   hS, hB, '') +
-    budgetCardHTML('Leslie', lS, lB, '') +
-    budgetCardHTML('Combined', cS, cB, 'full');
+    budgetCardHTML('Herb',     hS, hB, '') +
+    budgetCardHTML('Leslie',   lS, lB, '') +
+    budgetCardHTML('Combined', hS + lS, hB + lB, 'full');
 }
 
 function budgetCardHTML(name, spent, budget, extraClass) {
-  const pct  = budget > 0 ? Math.min(spent / budget * 100, 100) : 0;
-  const left = budget - spent;
-  const st   = left < 0 ? 'st-over' : pct >= 80 ? 'st-warn' : 'st-ok';
-  const leftTxt = left < 0
-    ? '$' + Math.abs(left).toFixed(2) + ' over budget'
-    : '$' + left.toFixed(2) + ' remaining';
+  const pct       = budget > 0 ? Math.min(spent / budget * 100, 100) : 0;
+  const pacePct   = budget > 0 ? Math.min(paceAmount(budget) / budget * 100, 100) : 0;
+  const remaining = budget - spent;
+  const over      = remaining < 0;
+  const pace      = paceAmount(budget);
+  // "behind" if spending more than pace, "ahead" if less, "on track" within 5%
+  const behindBy  = spent - pace;
+  const paceRatio = budget > 0 ? Math.abs(behindBy) / budget : 0;
+  const warn      = !over && pct >= 80;
+  const st        = over ? 'st-over' : warn ? 'st-warn' : 'st-ok';
+  const badge     = over ? 'Over' : warn ? 'Close' : 'On track';
+
+  const bigAmt   = over ? '-$' + Math.abs(remaining).toFixed(2) : '$' + remaining.toFixed(2);
+  const daysLeft = daysLeftInMonth();
+  const subLabel = over
+    ? 'over budget · ' + daysLeft + ' days left'
+    : 'remaining · ' + daysLeft + ' days left in ' + new Date().toLocaleDateString('en-US',{month:'short'});
+
+  // Pace label
+  let paceLabel = '';
+  if (paceRatio > 0.05) {
+    paceLabel = behindBy > 0
+      ? '↑ $' + behindBy.toFixed(0) + ' behind pace'
+      : '↓ $' + Math.abs(behindBy).toFixed(0) + ' ahead of pace';
+  } else {
+    paceLabel = '✓ Right on pace';
+  }
+
   return `<div class="bcard ${extraClass} ${st}">
-    <div class="bcard-name">${name}</div>
-    <div class="bcard-spent">$${spent.toFixed(2)}</div>
-    <div class="bcard-of">of $${budget.toFixed(2)}</div>
-    <div class="bcard-bar"><div class="bcard-fill" style="width:${pct.toFixed(1)}%"></div></div>
-    <div class="bcard-left">${leftTxt}</div>
+    <div class="bcard-top">
+      <div class="bcard-name">${name}</div>
+      <div class="bcard-badge">${badge}</div>
+    </div>
+    <div class="bcard-remaining">${bigAmt}</div>
+    <div class="bcard-label">${subLabel}</div>
+    <div class="bcard-bar">
+      <div class="bcard-fill" style="width:${pct.toFixed(1)}%"></div>
+      <div class="bcard-pace-mark" style="left:${pacePct.toFixed(1)}%"></div>
+    </div>
+    <div class="bcard-bottom">
+      <div class="bcard-spent">Spent <span>$${spent.toFixed(2)}</span> of $${budget.toFixed(2)}</div>
+      <div class="bcard-pace-lbl">${paceLabel}</div>
+    </div>
   </div>`;
+}
+
+function renderWeeklySummary() {
+  const ws   = weekStartOf(todayStr());
+  const hW   = spentInWeek('Herb',   ws);
+  const lW   = spentInWeek('Leslie', ws);
+  const el   = document.getElementById('week-summary');
+  const fmt  = n => '$' + n.toFixed(2);
+  el.innerHTML = `
+    <div class="week-person">
+      <div class="week-person-name">Herb</div>
+      <div class="week-person-amt">${fmt(hW)}</div>
+      <div class="week-person-sub">this week</div>
+    </div>
+    <div class="week-person">
+      <div class="week-person-name">Leslie</div>
+      <div class="week-person-amt">${fmt(lW)}</div>
+      <div class="week-person-sub">this week</div>
+    </div>
+    <div class="week-person">
+      <div class="week-person-name">Together</div>
+      <div class="week-person-amt">${fmt(hW + lW)}</div>
+      <div class="week-person-sub">this week</div>
+    </div>`;
 }
 
 function renderWeekList() {
@@ -684,9 +822,9 @@ function delExpense(id) {
 }
 
 function saveSettings() {
-  const h = parseFloat(document.getElementById('s-herb').value)   || 50;
-  const l = parseFloat(document.getElementById('s-leslie').value) || 50;
-  db.ref('settings').set({ herb: h, leslie: l })
+  const h = parseFloat(document.getElementById('s-herb').value)   || 200;
+  const l = parseFloat(document.getElementById('s-leslie').value) || 200;
+  db.ref('settings').set({ herbMonthly: h, leslieMonthly: l })
     .then(() => toast('✅ Saved!'))
     .catch(e => toast('Error: '+e.message));
 }
@@ -725,10 +863,9 @@ function toast(msg) {
 // Boot
 // ─────────────────────────────────────────────────────────────
 window.addEventListener('load', () => {
-  // Update week label
+  // Update header month label
   const setWeek = () => {
-    const ws = weekStartOf(todayStr());
-    document.getElementById('hdr-week').textContent = 'Week of ' + weekRangeLabel(ws);
+    document.getElementById('hdr-week').textContent = monthLabel();
   };
   setWeek();
 

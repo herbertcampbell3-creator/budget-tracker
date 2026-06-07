@@ -1,0 +1,756 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Budget">
+  <meta name="theme-color" content="#1a6b3c">
+  <title>Budget Tracker</title>
+
+  <!-- Firebase -->
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+
+  <style>
+    :root {
+      --green:      #1a6b3c;
+      --green-bg:   #e8f5ed;
+      --blue:       #1565c0;
+      --blue-bg:    #e3f2fd;
+      --red:        #c62828;
+      --orange:     #e65100;
+      --bg:         #f0f4f8;
+      --card:       #ffffff;
+      --text:       #1a202c;
+      --muted:      #718096;
+      --border:     #e2e8f0;
+      --nav-h:      60px;
+      --hdr-h:      54px;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      padding-top: var(--hdr-h);
+      padding-bottom: var(--nav-h);
+    }
+
+    /* ── Header ─────────────────────────────────────────────── */
+    .hdr {
+      position: fixed; top: 0; left: 0; right: 0;
+      height: var(--hdr-h);
+      background: var(--green);
+      color: white;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      z-index: 100;
+      padding: 0 16px;
+    }
+    .hdr-title  { font-size: 15px; font-weight: 700; letter-spacing: 0.2px; }
+    .hdr-week   { font-size: 12px; opacity: 0.8; margin-top: 1px; }
+
+    /* ── Bottom nav ─────────────────────────────────────────── */
+    .nav {
+      position: fixed; bottom: 0; left: 0; right: 0;
+      height: var(--nav-h);
+      background: var(--card);
+      border-top: 1px solid var(--border);
+      display: flex; align-items: stretch;
+      z-index: 100;
+      padding-bottom: env(safe-area-inset-bottom, 0);
+    }
+    .nav-btn {
+      flex: 1; display: flex; flex-direction: column;
+      align-items: center; justify-content: center; gap: 3px;
+      border: none; background: none;
+      color: var(--muted); font-size: 10px; font-weight: 500;
+      cursor: pointer; transition: color 0.15s;
+    }
+    .nav-btn svg { width: 22px; height: 22px; flex-shrink: 0; }
+    .nav-btn.active { color: var(--green); }
+    .nav-add {
+      flex: 1.2;
+      background: var(--green);
+      color: white !important;
+      font-size: 11px; font-weight: 700;
+      border-radius: 0;
+    }
+    .nav-add svg { width: 26px; height: 26px; }
+
+    /* ── Tabs ───────────────────────────────────────────────── */
+    .tab { display: none; padding: 14px 14px 8px; }
+    .tab.active { display: block; }
+
+    /* ── Cards ──────────────────────────────────────────────── */
+    .card {
+      background: var(--card);
+      border-radius: 12px;
+      padding: 16px;
+      margin-bottom: 12px;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.07);
+    }
+    .card-title {
+      font-size: 11px; font-weight: 700; letter-spacing: 0.6px;
+      text-transform: uppercase; color: var(--muted);
+      margin-bottom: 12px;
+    }
+
+    /* ── Budget grid ────────────────────────────────────────── */
+    .budget-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 12px; }
+
+    .bcard {
+      background: var(--card);
+      border-radius: 12px;
+      padding: 14px 14px 12px;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.07);
+    }
+    .bcard.full { grid-column: 1 / -1; }
+
+    .bcard-name  { font-size: 12px; color: var(--muted); font-weight: 600; }
+    .bcard-spent { font-size: 24px; font-weight: 800; margin: 3px 0 1px; line-height: 1; }
+    .bcard-of    { font-size: 12px; color: var(--muted); }
+    .bcard-bar   { height: 5px; background: var(--border); border-radius: 3px; margin: 8px 0 6px; overflow: hidden; }
+    .bcard-fill  { height: 100%; border-radius: 3px; transition: width 0.4s ease; }
+    .bcard-left  { font-size: 12px; font-weight: 700; }
+
+    .st-ok   .bcard-fill { background: var(--green); }
+    .st-ok   .bcard-left { color: var(--green); }
+    .st-warn .bcard-fill { background: var(--orange); }
+    .st-warn .bcard-left { color: var(--orange); }
+    .st-over .bcard-fill { background: var(--red); }
+    .st-over .bcard-left { color: var(--red); }
+
+    /* ── Expense rows ───────────────────────────────────────── */
+    .exp-row {
+      display: flex; align-items: center; gap: 10px;
+      padding: 9px 0;
+      border-bottom: 1px solid var(--border);
+    }
+    .exp-row:last-child { border-bottom: none; }
+
+    .exp-av {
+      width: 34px; height: 34px; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 13px; font-weight: 800; color: white; flex-shrink: 0;
+    }
+    .av-herb   { background: var(--green); }
+    .av-leslie { background: var(--blue); }
+
+    .exp-info  { flex: 1; min-width: 0; }
+    .exp-desc  { font-size: 14px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .exp-meta  { font-size: 11px; color: var(--muted); margin-top: 1px; }
+    .exp-amt   { font-size: 15px; font-weight: 700; flex-shrink: 0; }
+    .exp-del   { background: none; border: none; color: #cbd5e0; font-size: 20px; line-height: 1; cursor: pointer; padding: 4px 2px; flex-shrink: 0; }
+    .exp-del:active { color: var(--red); }
+
+    /* ── Form ───────────────────────────────────────────────── */
+    .form-grp  { margin-bottom: 16px; }
+    .form-lbl  { display: block; font-size: 11px; font-weight: 700; letter-spacing: 0.5px; text-transform: uppercase; color: var(--muted); margin-bottom: 7px; }
+    .form-inp  {
+      width: 100%; padding: 13px 14px;
+      border: 1.5px solid var(--border); border-radius: 10px;
+      font-size: 16px; color: var(--text); background: white;
+      outline: none; transition: border-color 0.15s;
+      -webkit-appearance: none;
+    }
+    .form-inp:focus { border-color: var(--green); }
+
+    .toggle { display: flex; gap: 8px; }
+    .toggle-btn {
+      flex: 1; padding: 13px 8px;
+      border: 1.5px solid var(--border); border-radius: 10px;
+      background: white; font-size: 15px; font-weight: 700;
+      color: var(--muted); cursor: pointer; transition: all 0.15s;
+      text-align: center;
+    }
+    .toggle-btn.herb-sel   { border-color: var(--green);  background: var(--green-bg); color: var(--green); }
+    .toggle-btn.leslie-sel { border-color: var(--blue);   background: var(--blue-bg);  color: var(--blue); }
+
+    .btn-submit {
+      width: 100%; padding: 15px;
+      background: var(--green); color: white;
+      border: none; border-radius: 12px;
+      font-size: 16px; font-weight: 700;
+      cursor: pointer; transition: opacity 0.15s;
+    }
+    .btn-submit:disabled { opacity: 0.5; cursor: default; }
+    .btn-submit:active   { opacity: 0.85; }
+
+    /* ── History ────────────────────────────────────────────── */
+    .wk-hdr {
+      font-size: 11px; font-weight: 700; letter-spacing: 0.5px;
+      text-transform: uppercase; color: var(--muted);
+      display: flex; justify-content: space-between;
+      padding: 14px 2px 8px;
+    }
+
+    /* ── Settings ───────────────────────────────────────────── */
+    .srow {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 13px 0; border-bottom: 1px solid var(--border);
+    }
+    .srow:last-child { border-bottom: none; }
+    .srow-lbl  { font-size: 15px; font-weight: 500; }
+    .srow-val  { display: flex; align-items: center; gap: 6px; color: var(--muted); font-size: 14px; }
+    .budget-inp {
+      width: 72px; text-align: center;
+      padding: 8px 10px; border: 1.5px solid var(--border);
+      border-radius: 8px; font-size: 17px; font-weight: 800;
+      color: var(--green); outline: none; -webkit-appearance: none;
+    }
+    .budget-inp:focus { border-color: var(--green); }
+    .btn-save {
+      width: 100%; padding: 14px;
+      background: var(--green); color: white;
+      border: none; border-radius: 10px;
+      font-size: 15px; font-weight: 700;
+      cursor: pointer; margin-top: 16px;
+      transition: opacity 0.15s;
+    }
+    .btn-save:active { opacity: 0.85; }
+
+    /* ── Empty state ─────────────────────────────────────────── */
+    .empty { text-align: center; padding: 28px 16px; color: var(--muted); }
+    .empty-icon { font-size: 36px; margin-bottom: 8px; }
+    .empty p { font-size: 14px; }
+
+    /* ── Toast ───────────────────────────────────────────────── */
+    .toast {
+      position: fixed; bottom: calc(var(--nav-h) + 14px); left: 50%;
+      transform: translateX(-50%) translateY(12px);
+      background: #2d3748; color: white;
+      padding: 10px 18px; border-radius: 24px;
+      font-size: 14px; font-weight: 500;
+      opacity: 0; transition: all 0.2s;
+      pointer-events: none; white-space: nowrap; z-index: 999;
+    }
+    .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+    /* ── Setup overlay ───────────────────────────────────────── */
+    .setup {
+      position: fixed; inset: 0;
+      background: var(--green);
+      z-index: 1000;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      padding: 24px; overflow-y: auto;
+    }
+    .setup h1  { color: white; font-size: 26px; font-weight: 800; text-align: center; margin-bottom: 6px; }
+    .setup > p { color: rgba(255,255,255,0.85); font-size: 14px; text-align: center; margin-bottom: 22px; line-height: 1.5; }
+    .setup-box {
+      background: white; border-radius: 16px; padding: 22px;
+      width: 100%; max-width: 420px;
+    }
+    .setup-box h2  { font-size: 16px; font-weight: 700; margin-bottom: 10px; }
+    .setup-steps   { font-size: 13px; color: var(--muted); line-height: 1.8; margin-bottom: 14px; padding-left: 18px; }
+    .setup-steps a { color: var(--blue); }
+    .setup-box textarea {
+      width: 100%; height: 90px; resize: none;
+      border: 1.5px solid var(--border); border-radius: 8px;
+      padding: 10px; font-family: monospace; font-size: 12px; outline: none;
+    }
+    .setup-box textarea:focus { border-color: var(--green); }
+    .setup-err { color: var(--red); font-size: 12px; margin-top: 6px; min-height: 18px; }
+    .setup-btn {
+      width: 100%; padding: 14px;
+      background: var(--green); color: white;
+      border: none; border-radius: 10px;
+      font-size: 15px; font-weight: 700;
+      cursor: pointer; margin-top: 12px;
+    }
+
+    /* ── Dark mode ───────────────────────────────────────────── */
+    @media (prefers-color-scheme: dark) {
+      :root { --bg:#0f172a; --card:#1e293b; --text:#f1f5f9; --muted:#94a3b8; --border:#334155; }
+      .form-inp, .toggle-btn, .budget-inp { background:#1e293b; color:var(--text); border-color:var(--border); }
+      .nav { background:#1e293b; border-color:var(--border); }
+      .setup-box { background:#1e293b; color:var(--text); }
+      .setup-box textarea { background:#0f172a; color:var(--text); border-color:var(--border); }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ── Setup Overlay ─────────────────────────────────────────── -->
+<div id="setup" class="setup">
+  <h1>💰 Budget Tracker</h1>
+  <p>Connect a free Firebase database so Herb &amp; Leslie<br>can share expenses in real time.</p>
+  <div class="setup-box">
+    <h2>One-time setup (takes ~3 min)</h2>
+    <ol class="setup-steps">
+      <li>Go to <a href="https://console.firebase.google.com" target="_blank">console.firebase.google.com</a></li>
+      <li>Click <strong>Create a project</strong> → name it anything</li>
+      <li>Left sidebar → <strong>Build → Realtime Database</strong></li>
+      <li>Click <strong>Create database</strong> → choose <em>Start in test mode</em></li>
+      <li>Left sidebar → <strong>Project settings ⚙️ → General</strong></li>
+      <li>Scroll to <em>Your apps</em> → click <strong>&lt;/&gt; Web</strong></li>
+      <li>Register app, then copy the <code>firebaseConfig</code> object</li>
+      <li>Paste it below:</li>
+    </ol>
+    <textarea id="cfg-input" placeholder='Paste your firebaseConfig here, e.g.:
+{
+  "apiKey": "AIza...",
+  "databaseURL": "https://...",
+  ...
+}'></textarea>
+    <div id="cfg-err" class="setup-err"></div>
+    <button class="setup-btn" onclick="connectFirebase()">Connect &amp; Launch App →</button>
+  </div>
+</div>
+
+<!-- ── App Header ────────────────────────────────────────────── -->
+<header class="hdr">
+  <div class="hdr-title">Herb &amp; Leslie — Budget Tracker</div>
+  <div class="hdr-week" id="hdr-week"></div>
+</header>
+
+<!-- ── Dashboard ─────────────────────────────────────────────── -->
+<div id="tab-dashboard" class="tab active">
+  <div class="budget-grid" id="budget-grid">
+    <!-- rendered by JS -->
+  </div>
+  <div class="card">
+    <div class="card-title">This Week's Expenses</div>
+    <div id="week-list"></div>
+  </div>
+</div>
+
+<!-- ── Add Expense ────────────────────────────────────────────── -->
+<div id="tab-add" class="tab">
+  <div class="card">
+    <div class="card-title">Add Expense</div>
+    <div class="form-grp">
+      <label class="form-lbl" for="f-date">Date</label>
+      <input id="f-date" type="date" class="form-inp">
+    </div>
+    <div class="form-grp">
+      <label class="form-lbl">Person</label>
+      <div class="toggle">
+        <button class="toggle-btn herb-sel" id="btn-herb"   onclick="setPerson('Herb')">Herb</button>
+        <button class="toggle-btn"          id="btn-leslie" onclick="setPerson('Leslie')">Leslie</button>
+      </div>
+    </div>
+    <div class="form-grp">
+      <label class="form-lbl" for="f-desc">What did you buy?</label>
+      <input id="f-desc" type="text" class="form-inp" placeholder="e.g. Chipotle, Walmart groceries">
+    </div>
+    <div class="form-grp">
+      <label class="form-lbl" for="f-amt">Amount ($)</label>
+      <input id="f-amt" type="number" class="form-inp" placeholder="0.00" step="0.01" min="0" inputmode="decimal">
+    </div>
+    <button class="btn-submit" id="btn-submit" onclick="addExpense()">Add Expense</button>
+  </div>
+</div>
+
+<!-- ── History ────────────────────────────────────────────────── -->
+<div id="tab-history" class="tab">
+  <div id="history-list"></div>
+</div>
+
+<!-- ── Settings ──────────────────────────────────────────────── -->
+<div id="tab-settings" class="tab">
+  <div class="card">
+    <div class="card-title">Weekly Budgets</div>
+    <div class="srow">
+      <span class="srow-lbl">Herb</span>
+      <span class="srow-val">$<input id="s-herb" type="number" class="budget-inp" value="50" min="0"> / week</span>
+    </div>
+    <div class="srow">
+      <span class="srow-lbl">Leslie</span>
+      <span class="srow-val">$<input id="s-leslie" type="number" class="budget-inp" value="50" min="0"> / week</span>
+    </div>
+    <button class="btn-save" onclick="saveSettings()">Save</button>
+  </div>
+  <div class="card">
+    <div class="card-title">Info</div>
+    <div class="srow">
+      <span class="srow-lbl" style="font-size:13px;color:var(--muted);line-height:1.5">
+        Budget resets automatically every Monday.<br>
+        Week runs Monday through Sunday.
+      </span>
+    </div>
+    <div class="srow">
+      <span class="srow-lbl" style="font-size:13px">Disconnect / reset</span>
+      <button onclick="disconnect()" style="background:none;border:1px solid var(--border);border-radius:8px;padding:6px 12px;font-size:13px;cursor:pointer;color:var(--red)">Reset</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Bottom Nav ─────────────────────────────────────────────── -->
+<nav class="nav">
+  <button class="nav-btn active" id="nav-dashboard" onclick="goTab('dashboard')">
+    <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+      <rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/>
+      <rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/>
+    </svg>
+    Dashboard
+  </button>
+  <button class="nav-btn nav-add" id="nav-add" onclick="goTab('add')">
+    <svg fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+      <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+    </svg>
+    Add
+  </button>
+  <button class="nav-btn" id="nav-history" onclick="goTab('history')">
+    <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+      <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/>
+      <rect x="9" y="3" width="6" height="4" rx="1"/>
+      <line x1="9" y1="12" x2="15" y2="12"/><line x1="9" y1="16" x2="13" y2="16"/>
+    </svg>
+    History
+  </button>
+  <button class="nav-btn" id="nav-settings" onclick="goTab('settings')">
+    <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+      <circle cx="12" cy="12" r="3"/>
+      <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/>
+    </svg>
+    Settings
+  </button>
+</nav>
+
+<div id="toast" class="toast"></div>
+
+<script>
+// ─────────────────────────────────────────────────────────────
+// State
+// ─────────────────────────────────────────────────────────────
+let db            = null;
+let expenses      = {};   // live cache updated by Firebase listener
+let settings      = { herb: 50, leslie: 50 };
+let activePerson  = 'Herb';
+let activeTab     = 'dashboard';
+
+// ─────────────────────────────────────────────────────────────
+// Firebase setup
+// ─────────────────────────────────────────────────────────────
+function connectFirebase() {
+  const raw = document.getElementById('cfg-input').value.trim();
+  const err = document.getElementById('cfg-err');
+  err.textContent = '';
+
+  let cfg;
+  try {
+    // Extract the {...} block — works whether they paste just the object,
+    // the full "const firebaseConfig = {...};" line, or the whole snippet
+    const start = raw.indexOf('{');
+    const end   = raw.lastIndexOf('}');
+    if (start === -1 || end === -1 || end <= start) throw new Error('no braces');
+    const objStr = raw.slice(start, end + 1);
+
+    // Use Function() instead of JSON.parse — Firebase config uses JavaScript
+    // object literal syntax (unquoted keys), which JSON.parse cannot handle.
+    cfg = new Function('return (' + objStr + ')')();
+  } catch(e) {
+    err.textContent = 'Could not read config — paste the firebaseConfig block from Firebase (the part inside the curly braces).';
+    return;
+  }
+
+  if (!cfg || !cfg.databaseURL) {
+    err.textContent = 'Missing databaseURL. In Firebase, go to Build → Realtime Database and create a database first, then copy the config again.';
+    return;
+  }
+
+  try {
+    firebase.initializeApp(cfg);
+    localStorage.setItem('fb_cfg', JSON.stringify(cfg));
+    document.getElementById('setup').style.display = 'none';
+    startApp();
+  } catch(e) {
+    err.textContent = 'Firebase error: ' + e.message;
+  }
+}
+
+function startApp() {
+  db = firebase.database();
+
+  // Real-time settings listener
+  db.ref('settings').on('value', snap => {
+    const v = snap.val();
+    if (v) {
+      settings = { herb: v.herb || 50, leslie: v.leslie || 50 };
+      document.getElementById('s-herb').value   = settings.herb;
+      document.getElementById('s-leslie').value = settings.leslie;
+    }
+    render();
+  });
+
+  // Real-time expenses listener — updates dashboard and history instantly
+  db.ref('expenses').on('value', snap => {
+    expenses = snap.val() || {};
+    render();
+  });
+}
+
+function disconnect() {
+  if (!confirm('This clears your saved Firebase config on this device. Your data stays in Firebase.')) return;
+  localStorage.removeItem('fb_cfg');
+  location.reload();
+}
+
+// ─────────────────────────────────────────────────────────────
+// Date helpers
+// ─────────────────────────────────────────────────────────────
+function todayStr() {
+  const d = new Date();
+  return d.getFullYear() + '-' + pad(d.getMonth()+1) + '-' + pad(d.getDate());
+}
+function pad(n) { return String(n).padStart(2,'0'); }
+
+function weekStartOf(dateStr) {
+  const d = new Date(dateStr + 'T12:00:00');
+  const dow = d.getDay();                      // 0=Sun
+  const diff = dow === 0 ? -6 : 1 - dow;      // days back to Monday
+  d.setDate(d.getDate() + diff);
+  return d.getFullYear() + '-' + pad(d.getMonth()+1) + '-' + pad(d.getDate());
+}
+
+function addDays(dateStr, n) {
+  const d = new Date(dateStr + 'T12:00:00');
+  d.setDate(d.getDate() + n);
+  return d.getFullYear() + '-' + pad(d.getMonth()+1) + '-' + pad(d.getDate());
+}
+
+function fmtShort(dateStr) {
+  return new Date(dateStr + 'T12:00:00').toLocaleDateString('en-US', { month:'short', day:'numeric' });
+}
+
+function fmtLong(dateStr) {
+  return new Date(dateStr + 'T12:00:00').toLocaleDateString('en-US', { weekday:'short', month:'short', day:'numeric' });
+}
+
+function weekRangeLabel(startStr) {
+  const s = new Date(startStr + 'T12:00:00');
+  const e = new Date(startStr + 'T12:00:00');
+  e.setDate(e.getDate() + 6);
+  const opts = { month:'short', day:'numeric' };
+  return s.toLocaleDateString('en-US', opts) + ' – ' + e.toLocaleDateString('en-US', { ...opts, year:'numeric' });
+}
+
+// ─────────────────────────────────────────────────────────────
+// Budget helpers
+// ─────────────────────────────────────────────────────────────
+function spentInWeek(person, weekStart) {
+  const weekEnd = addDays(weekStart, 7);
+  return Object.values(expenses)
+    .filter(e => e.person === person && e.date >= weekStart && e.date < weekEnd)
+    .reduce((s, e) => s + (parseFloat(e.amount) || 0), 0);
+}
+
+function thisWeekEntries() {
+  const ws = weekStartOf(todayStr());
+  const we = addDays(ws, 7);
+  return Object.entries(expenses)
+    .filter(([,e]) => e.date >= ws && e.date < we)
+    .sort((a, b) => b[1].date.localeCompare(a[1].date) || b[1].timestamp - a[1].timestamp);
+}
+
+// ─────────────────────────────────────────────────────────────
+// Render
+// ─────────────────────────────────────────────────────────────
+function render() {
+  renderBudgetCards();
+  renderWeekList();
+  renderHistory();
+}
+
+function renderBudgetCards() {
+  const ws    = weekStartOf(todayStr());
+  const hS    = spentInWeek('Herb',   ws);
+  const lS    = spentInWeek('Leslie', ws);
+  const hB    = settings.herb;
+  const lB    = settings.leslie;
+  const cS    = hS + lS;
+  const cB    = hB + lB;
+
+  document.getElementById('budget-grid').innerHTML =
+    budgetCardHTML('Herb',   hS, hB, '') +
+    budgetCardHTML('Leslie', lS, lB, '') +
+    budgetCardHTML('Combined', cS, cB, 'full');
+}
+
+function budgetCardHTML(name, spent, budget, extraClass) {
+  const pct  = budget > 0 ? Math.min(spent / budget * 100, 100) : 0;
+  const left = budget - spent;
+  const st   = left < 0 ? 'st-over' : pct >= 80 ? 'st-warn' : 'st-ok';
+  const leftTxt = left < 0
+    ? '$' + Math.abs(left).toFixed(2) + ' over budget'
+    : '$' + left.toFixed(2) + ' remaining';
+  return `<div class="bcard ${extraClass} ${st}">
+    <div class="bcard-name">${name}</div>
+    <div class="bcard-spent">$${spent.toFixed(2)}</div>
+    <div class="bcard-of">of $${budget.toFixed(2)}</div>
+    <div class="bcard-bar"><div class="bcard-fill" style="width:${pct.toFixed(1)}%"></div></div>
+    <div class="bcard-left">${leftTxt}</div>
+  </div>`;
+}
+
+function renderWeekList() {
+  const items = thisWeekEntries();
+  const el    = document.getElementById('week-list');
+  if (!items.length) {
+    el.innerHTML = '<div class="empty"><div class="empty-icon">🛒</div><p>No expenses this week yet.</p></div>';
+    return;
+  }
+  el.innerHTML = items.map(([id, e]) => expRowHTML(id, e, true)).join('');
+}
+
+function renderHistory() {
+  const all = Object.entries(expenses)
+    .sort((a,b) => b[1].date.localeCompare(a[1].date) || (b[1].timestamp||0) - (a[1].timestamp||0));
+
+  if (!all.length) {
+    document.getElementById('history-list').innerHTML =
+      '<div class="empty"><div class="empty-icon">📋</div><p>No expenses yet.</p></div>';
+    return;
+  }
+
+  // Group by week
+  const weeks = {};
+  all.forEach(([id,e]) => {
+    const ws = weekStartOf(e.date);
+    (weeks[ws] = weeks[ws] || []).push([id,e]);
+  });
+
+  let html = '';
+  Object.keys(weeks).sort((a,b) => b.localeCompare(a)).forEach(ws => {
+    const items = weeks[ws];
+    const total = items.reduce((s,[,e]) => s + (parseFloat(e.amount)||0), 0);
+    html += `<div class="wk-hdr"><span>${weekRangeLabel(ws)}</span><span>$${total.toFixed(2)}</span></div>`;
+    html += '<div class="card" style="padding:4px 16px">';
+    html += items.map(([id,e]) => expRowHTML(id, e, false)).join('');
+    html += '</div>';
+  });
+  document.getElementById('history-list').innerHTML = html;
+}
+
+function expRowHTML(id, e, shortDate) {
+  const init = e.person === 'Herb' ? 'H' : 'L';
+  const cls  = e.person === 'Herb' ? 'av-herb' : 'av-leslie';
+  const date = shortDate ? fmtShort(e.date) : fmtLong(e.date);
+  return `<div class="exp-row">
+    <div class="exp-av ${cls}">${init}</div>
+    <div class="exp-info">
+      <div class="exp-desc">${esc(e.description)}</div>
+      <div class="exp-meta">${date}</div>
+    </div>
+    <div class="exp-amt">$${parseFloat(e.amount).toFixed(2)}</div>
+    <button class="exp-del" onclick="delExpense('${id}')" title="Delete">×</button>
+  </div>`;
+}
+
+function esc(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+// ─────────────────────────────────────────────────────────────
+// Actions
+// ─────────────────────────────────────────────────────────────
+function addExpense() {
+  const date = document.getElementById('f-date').value;
+  const desc = document.getElementById('f-desc').value.trim();
+  const amt  = parseFloat(document.getElementById('f-amt').value);
+
+  if (!date)          { toast('Please choose a date');       return; }
+  if (!desc)          { toast('Please enter a description'); return; }
+  if (!amt || amt<=0) { toast('Please enter a valid amount');return; }
+
+  const btn = document.getElementById('btn-submit');
+  btn.disabled = true; btn.textContent = 'Adding…';
+
+  db.ref('expenses').push({ date, person: activePerson, description: desc, amount: amt, timestamp: Date.now() })
+    .then(() => {
+      document.getElementById('f-desc').value = '';
+      document.getElementById('f-amt').value  = '';
+      document.getElementById('f-date').value = todayStr();
+      btn.disabled = false; btn.textContent = 'Add Expense';
+      toast('✅ Expense added!');
+      goTab('dashboard');
+    })
+    .catch(e => { btn.disabled=false; btn.textContent='Add Expense'; toast('Error: '+e.message); });
+}
+
+function delExpense(id) {
+  if (!confirm('Delete this expense?')) return;
+  db.ref('expenses/'+id).remove()
+    .then(() => toast('Deleted'))
+    .catch(e => toast('Error: '+e.message));
+}
+
+function saveSettings() {
+  const h = parseFloat(document.getElementById('s-herb').value)   || 50;
+  const l = parseFloat(document.getElementById('s-leslie').value) || 50;
+  db.ref('settings').set({ herb: h, leslie: l })
+    .then(() => toast('✅ Saved!'))
+    .catch(e => toast('Error: '+e.message));
+}
+
+function setPerson(p) {
+  activePerson = p;
+  document.getElementById('btn-herb').className   = 'toggle-btn' + (p==='Herb'   ? ' herb-sel'   : '');
+  document.getElementById('btn-leslie').className = 'toggle-btn' + (p==='Leslie' ? ' leslie-sel' : '');
+}
+
+// ─────────────────────────────────────────────────────────────
+// Navigation
+// ─────────────────────────────────────────────────────────────
+function goTab(name) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('tab-' + name).classList.add('active');
+  const nb = document.getElementById('nav-' + name);
+  if (nb) nb.classList.add('active');
+  activeTab = name;
+  if (name === 'add') { document.getElementById('f-date').value = todayStr(); setTimeout(()=>document.getElementById('f-desc').focus(),100); }
+  window.scrollTo(0,0);
+}
+
+// ─────────────────────────────────────────────────────────────
+// Toast
+// ─────────────────────────────────────────────────────────────
+function toast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2500);
+}
+
+// ─────────────────────────────────────────────────────────────
+// Boot
+// ─────────────────────────────────────────────────────────────
+window.addEventListener('load', () => {
+  // Update week label
+  const setWeek = () => {
+    const ws = weekStartOf(todayStr());
+    document.getElementById('hdr-week').textContent = 'Week of ' + weekRangeLabel(ws);
+  };
+  setWeek();
+
+  // Refresh at midnight
+  const now = new Date();
+  const msToMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate()+1) - now;
+  setTimeout(() => { setWeek(); setInterval(setWeek, 86400000); }, msToMidnight);
+
+  // Auto-connect if config is saved
+  const saved = localStorage.getItem('fb_cfg');
+  if (saved) {
+    try {
+      firebase.initializeApp(JSON.parse(saved));
+      document.getElementById('setup').style.display = 'none';
+      startApp();
+    } catch(e) {
+      localStorage.removeItem('fb_cfg');
+    }
+  }
+
+  document.getElementById('f-date').value = todayStr();
+});
+</script>
+</body>
+</html>
